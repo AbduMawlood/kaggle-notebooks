@@ -1,0 +1,91 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.29.1-pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-netchronos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netchronos}
+      POSTGRES_DB: ${POSTGRES_DB:-netchronos}
+      TIMESCALEDB_TELEMETRY: "off"
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=timescaledb
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=100
+      - -c
+      - fsync=on
+      - -c
+      - synchronous_commit=on
+      - -c
+      - full_page_writes=on
+      - -c
+      - jit=off
+      - -c
+      - track_io_timing=on
+      - -c
+      - track_wal_io_timing=on
+    ports:
+      - "${PGPORT_TS:-6543}:5432"
+    shm_size: 1gb
+    mem_limit: ${BENCH_MEM:-8g}
+    cpus: ${BENCH_CPUS:-4.0}
+    volumes:
+      - tsdata:/var/lib/postgresql/data
+      - ./sql:/opt/netchronos/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netchronos} -d ${POSTGRES_DB:-netchronos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-netchronos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netchronos}
+      POSTGRES_DB: ${POSTGRES_DB:-netchronos}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=100
+      - -c
+      - fsync=on
+      - -c
+      - synchronous_commit=on
+      - -c
+      - full_page_writes=on
+      - -c
+      - jit=off
+      - -c
+      - track_io_timing=on
+      - -c
+      - track_wal_io_timing=on
+    ports:
+      - "${PGPORT_BASE:-6544}:5432"
+    shm_size: 1gb
+    mem_limit: ${BENCH_MEM:-8g}
+    cpus: ${BENCH_CPUS:-4.0}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql:/opt/netchronos/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netchronos} -d ${POSTGRES_DB:-netchronos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  tsdata:
+  pgdata:
