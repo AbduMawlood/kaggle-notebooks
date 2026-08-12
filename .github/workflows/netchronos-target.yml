@@ -25,9 +25,18 @@ env:
   PGPORT_BASE: '6544'
 
 jobs:
-  prepare:
+  scenario_prepare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        scenario:
+          - normal
+          - varying_load
+          - normal_synflood_ddos
+          - normal_udp_ddos
     steps:
       - uses: actions/checkout@v4
       - name: Reconstruct verified research bundle
@@ -59,39 +68,232 @@ jobs:
       - name: Verify frozen protocol
         working-directory: target-run/netchronos
         run: python scripts/verify_protocol.py
+      - name: Download, prepare, and strictly validate one real Yatesbury scenario
+        working-directory: target-run/netchronos
+        run: |
+          set -euo pipefail
+          scenario='${{ matrix.scenario }}'
+          python scripts/download_yatesbury.py --scenario "${scenario}"
+          python ../../netchronos-ci/patch_yatesbury.py scripts/prepare_yatesbury.py
+          python scripts/prepare_yatesbury.py \
+            --out "data/processed/yatesbury_${scenario}.parquet" \
+            --manifest "data/processed/yatesbury_${scenario}.manifest.json"
+          python scripts/validate_dataset.py \
+            --data "data/processed/yatesbury_${scenario}.parquet" \
+            --manifest "data/processed/yatesbury_${scenario}.manifest.json" \
+            --require-scenario "${scenario}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yatesbury-${{ matrix.scenario }}
+          retention-days: 30
+          compression-level: 6
+          if-no-files-found: error
+          path: |
+            target-run/netchronos/data/processed/yatesbury_${{ matrix.scenario }}.parquet
+            target-run/netchronos/data/processed/yatesbury_${{ matrix.scenario }}.manifest.json
+
+  combine_calibrate:
+    needs: scenario_prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct verified research bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target-run
+          cat netchronos-ci/minbundle.part000 \
+              netchronos-ci/minbundle.part001a \
+              netchronos-ci/minbundle.part001b \
+              netchronos-ci/minbundle.part002a \
+              netchronos-ci/minbundle.part002b \
+              netchronos-ci/minbundle.part003a \
+              netchronos-ci/minbundle.part003b \
+              netchronos-ci/minbundle.part004a \
+              netchronos-ci/minbundle.part004b \
+              netchronos-ci/minbundle.part005 \
+              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
+          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
+          tar -xzf target-run/netchronos.tgz -C target-run
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: target-run/netchronos/requirements.txt
+      - name: Install Python dependencies
+        working-directory: target-run/netchronos
+        run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: yatesbury-*
+          path: scenario-artifacts
+      - name: Stream-combine independently validated scenario traces
+        working-directory: target-run/netchronos
+        run: |
+          python ../../netchronos-ci/combine_yatesbury.py --input-root ../../scenario-artifacts
+          python scripts/verify_protocol.py
       - name: Start equal-resource database stack
         working-directory: target-run/netchronos
         run: |
           docker compose pull
           docker compose up -d timescaledb postgres
-      - name: Download and prepare real Yatesbury telemetry
-        working-directory: target-run/netchronos
-        run: |
-          python scripts/download_yatesbury.py --scenario normal --scenario varying_load --scenario normal_synflood_ddos --scenario normal_udp_ddos
-          python ../../netchronos-ci/patch_yatesbury.py scripts/prepare_yatesbury.py
-          python scripts/prepare_yatesbury.py
-          python scripts/validate_dataset.py
       - name: Semantic integration smoke test
         working-directory: target-run/netchronos
         run: python scripts/integration_smoke.py
       - name: Shared ingestion calibration
         working-directory: target-run/netchronos
         run: python scripts/calibrate.py --seconds 60
-      - name: Pilot-only physical-design selection
-        working-directory: target-run/netchronos
-        run: |
-          python scripts/run_pilot.py --candidates 36 --seconds 30 --prefill-event-hours 72
-          python scripts/select_pilot_best.py
-      - name: Capture preparation provenance
+      - name: Capture shared environment provenance
         working-directory: target-run/netchronos
         run: |
           python scripts/preflight.py --require-docker --inspect-compose --out results/environment.json
-          sha256sum data/processed/yatesbury.parquet configs/preregistered_protocol.yaml configs/experiment_matrix.yaml > results/prep_sha256.txt
+          sha256sum data/processed/yatesbury.parquet configs/preregistered_protocol.yaml configs/experiment_matrix.yaml > results/data_protocol_sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: netchronos-data-calibration
+          retention-days: 30
+          compression-level: 6
+          if-no-files-found: error
+          path: |
+            target-run/netchronos/data/processed/yatesbury.parquet
+            target-run/netchronos/data/processed/yatesbury_manifest.json
+            target-run/netchronos/results/calibration.json
+            target-run/netchronos/results/environment.json
+            target-run/netchronos/results/data_protocol_sha256.txt
+
+  pilot:
+    needs: combine_calibrate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        candidate: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct verified research bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target-run
+          cat netchronos-ci/minbundle.part000 \
+              netchronos-ci/minbundle.part001a \
+              netchronos-ci/minbundle.part001b \
+              netchronos-ci/minbundle.part002a \
+              netchronos-ci/minbundle.part002b \
+              netchronos-ci/minbundle.part003a \
+              netchronos-ci/minbundle.part003b \
+              netchronos-ci/minbundle.part004a \
+              netchronos-ci/minbundle.part004b \
+              netchronos-ci/minbundle.part005 \
+              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
+          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
+          tar -xzf target-run/netchronos.tgz -C target-run
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: target-run/netchronos/requirements.txt
+      - name: Install Python dependencies
+        working-directory: target-run/netchronos
+        run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: netchronos-data-calibration
+          path: target-run/netchronos
+      - name: Verify pilot inputs
+        working-directory: target-run/netchronos
+        run: |
+          python scripts/verify_protocol.py
+          test -s data/processed/yatesbury.parquet
+          test -s results/calibration.json
+      - name: Start isolated TimescaleDB stack
+        working-directory: target-run/netchronos
+        run: |
+          docker compose pull timescaledb postgres
+          docker compose up -d timescaledb postgres
+      - name: Execute exactly one deterministic pilot candidate
+        working-directory: target-run/netchronos
+        run: |
+          mkdir -p results/raw
+          python ../../netchronos-ci/run_pilot_one.py \
+            --candidate-index '${{ matrix.candidate }}' \
+            --candidates 36 \
+            --seconds 30 \
+            --prefill-event-hours 72 \
+            --out 'results/raw/pilot_c${{ matrix.candidate }}.jsonl'
+      - name: Preserve database diagnostics on failure
+        if: failure()
+        working-directory: target-run/netchronos
+        run: |
+          mkdir -p results/diagnostics
+          docker compose ps > results/diagnostics/compose_ps.txt || true
+          docker compose logs --no-color > results/diagnostics/compose.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pilot-candidate-${{ matrix.candidate }}
+          retention-days: 30
+          compression-level: 6
+          if-no-files-found: error
+          path: |
+            target-run/netchronos/results/raw/pilot_c${{ matrix.candidate }}.jsonl
+            target-run/netchronos/results/diagnostics/**
+
+  pilot_aggregate:
+    needs: pilot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct verified research bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target-run
+          cat netchronos-ci/minbundle.part000 \
+              netchronos-ci/minbundle.part001a \
+              netchronos-ci/minbundle.part001b \
+              netchronos-ci/minbundle.part002a \
+              netchronos-ci/minbundle.part002b \
+              netchronos-ci/minbundle.part003a \
+              netchronos-ci/minbundle.part003b \
+              netchronos-ci/minbundle.part004a \
+              netchronos-ci/minbundle.part004b \
+              netchronos-ci/minbundle.part005 \
+              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
+          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
+          tar -xzf target-run/netchronos.tgz -C target-run
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: target-run/netchronos/requirements.txt
+      - name: Install Python dependencies
+        working-directory: target-run/netchronos
+        run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: netchronos-data-calibration
+          path: target-run/netchronos
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pilot-candidate-*
+          path: pilot-artifacts
+      - name: Aggregate all 36 pilot candidates and freeze pilot-best design
+        working-directory: target-run/netchronos
+        run: |
+          python ../../netchronos-ci/aggregate_pilot.py --input-root ../../pilot-artifacts --candidates 36 --phases 5
+          python scripts/select_pilot_best.py
+          sha256sum data/processed/yatesbury.parquet configs/preregistered_protocol.yaml configs/experiment_matrix.yaml results/raw/pilot.jsonl results/pilot_best_design.json > results/prep_sha256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: netchronos-prep
           retention-days: 30
           compression-level: 6
+          if-no-files-found: error
           path: |
             target-run/netchronos/data/processed/yatesbury.parquet
             target-run/netchronos/data/processed/yatesbury_manifest.json
@@ -102,7 +304,7 @@ jobs:
             target-run/netchronos/results/prep_sha256.txt
 
   target:
-    needs: prepare
+    needs: pilot_aggregate
     runs-on: ubuntu-24.04
     timeout-minutes: 70
     strategy:
