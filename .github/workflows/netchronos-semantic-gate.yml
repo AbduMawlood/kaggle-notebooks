@@ -39,11 +39,9 @@ jobs:
       - name: Stream-combine validation artifacts
         working-directory: target-run/netchronos
         run: python ../../netchronos-ci/combine_yatesbury.py --input-root ../../scenario-artifacts
-      - name: Start target database engines
+      - name: Start healthy target database engines
         working-directory: target-run/netchronos
-        run: |
-          docker compose pull
-          docker compose up -d timescaledb postgres
+        run: bash ../../netchronos-ci/start_db_stack.sh timescaledb postgres
       - name: Run semantic integration gate only
         working-directory: target-run/netchronos
         run: python scripts/integration_smoke.py
