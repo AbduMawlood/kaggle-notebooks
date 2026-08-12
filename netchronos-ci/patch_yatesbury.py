@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Patch the frozen preparer for Yatesbury archives that omit CSV header rows.
+"""Patch the frozen preparer for Yatesbury archive compatibility.
 
-The patch does not alter source records. It first accepts Microsoft-published headers
-when present; otherwise it assigns Microsoft's documented field order to headerless
-records and retains the preparer's strict schema checks.
+The patch does not alter source records. It:
+1. accepts Microsoft-published headers when present;
+2. assigns Microsoft's documented field order only when archives omit CSV headers; and
+3. normalizes event and label timestamps to the same UTC nanosecond dtype before
+   pandas.merge_asof, avoiding pandas 3.x resolution mismatches (us vs ns).
+Strict schema checks remain active.
 """
 from pathlib import Path
 import sys
@@ -41,9 +44,25 @@ s = s.replace(
     "df=read_yatesbury_csv(nsg, list(COLS))",
     1,
 )
-if "df=read_yatesbury_csv(nsg, list(COLS))" not in s:
-    raise SystemExit('nsg parser replacement failed')
-if "lab=read_yatesbury_csv(label_path" not in s:
-    raise SystemExit('label parser replacement failed')
+# pandas 3.x may preserve different inferred datetime units for different files.
+# merge_asof requires the join dtypes to match exactly, so normalize both to ns UTC.
+s = s.replace(
+    "lab['label_start']=pd.to_datetime(lab['label_start'],utc=True,errors='raise')",
+    "lab['label_start']=pd.to_datetime(lab['label_start'],utc=True,errors='raise').astype('datetime64[ns, UTC]')",
+    1,
+)
+s = s.replace(
+    "x['ts']=pd.to_datetime(x['ts'],utc=True,errors='raise')",
+    "x['ts']=pd.to_datetime(x['ts'],utc=True,errors='raise').astype('datetime64[ns, UTC]')",
+    1,
+)
+checks = [
+    "df=read_yatesbury_csv(nsg, list(COLS))",
+    "lab=read_yatesbury_csv(label_path",
+    "datetime64[ns, UTC]",
+]
+for check in checks:
+    if check not in s:
+        raise SystemExit(f'patch verification failed: {check}')
 path.write_text(s, encoding='utf-8')
-print(f'patched {path} for headered/headerless Yatesbury CSV compatibility')
+print(f'patched {path} for Yatesbury CSV compatibility and UTC-ns timestamp normalization')
