@@ -1,0 +1,142 @@
+protocol_version: 1.2
+locked_on: '2026-08-11'
+seed: 20260810
+study_title: 'NetChronos: SLO-Aware Adaptive Physical Design for Network Telemetry
+  under Workload Drift'
+status: advanced-method-locked-before-target-engine-performance-results
+primary_dataset:
+  name: Yatesbury
+  source_project: Microsoft NetVigil / Yatesbury
+  required_scenarios:
+  - normal
+  - varying_load
+  - normal_synflood_ddos
+  pilot_split: chronological_first_20_percent
+  evaluation_split: chronological_remaining_80_percent
+  values_policy: preserve_original_flow_values
+  labels_policy: join_authoritative_label_csv_by_src_dst_and_2min_event_window
+independent_repetitions: 15
+control_interval_seconds: 30
+phase_seconds: 300
+same_absolute_offered_load_across_baselines: true
+reference_capacity_engine: ts_default
+warm_start_policy: pilot_only
+controller_reset_each_repetition: true
+hypotheses:
+  H1: The ranking of static physical designs changes across predefined telemetry workload
+    regimes.
+  H2: NetChronos reduces paired SLO-violation exposure across evaluation repetitions
+    versus TS-Native and TS-Pilot-Best without weakening durability settings.
+  H3: Explicit reconfiguration-cost gating reduces configuration churn and reconfiguration
+    time versus NetChronos-NoCost.
+  H4: Non-atomic temporal redesign produces measurable target-relative physical-design
+    debt during at least one adaptive regime transition.
+  H5: No single control dimension explains all adaptive benefit; ablation effects
+    vary by workload regime.
+primary_outcomes:
+- p95_query_latency_ms
+- ingest_fraction_of_offered
+- slo_violation_fraction
+- time_to_slo_recovery_s
+- cumulative_reconfiguration_seconds
+- adaptation_count
+secondary_outcomes:
+- p50_query_latency_ms
+- p99_query_latency_ms
+- completed_queries_per_s
+- storage_bytes
+- cagg_staleness_s
+- cpu_fraction
+- memory_bytes
+- disk_read_bytes
+- disk_write_bytes
+- wal_bytes
+- migration_debt_end_bytes
+- migration_debt_fraction_mean
+- migration_debt_exposure_fraction_seconds
+slo:
+  p95_query_latency_ms_max: 250.0
+  ingest_fraction_of_offered_min: 0.95
+  cagg_staleness_s_max: 900.0
+  reconfiguration_seconds_per_action_max: 30.0
+baseline_order:
+- pg_heap
+- pg_partitioned
+- ts_default
+- ts_native
+- ts_pilot_best
+- ts_static_cf
+- bo_ungated
+- netchronos_nocost
+- netchronos
+primary_comparisons:
+- - netchronos
+  - ts_native
+- - netchronos
+  - ts_pilot_best
+- - netchronos
+  - bo_ungated
+- - netchronos
+  - netchronos_nocost
+statistics:
+  unit_of_inference: repetition
+  aggregation_before_test: one_value_per_repetition_and_prespecified_endpoint
+  paired_test: wilcoxon_signed_rank_two_sided
+  multiple_testing: holm_bonferroni
+  alpha: 0.05
+  effect_size: paired_rank_biserial
+  uncertainty: bootstrap_95_percent_ci
+  bootstrap_resamples: 10000
+  missing_or_failed_run_policy: retain failure in run manifest; exclude pair from
+    inferential test only when endpoint is non-finite, and report analyzable n
+exclusion_rules:
+- Abort a run if the selected real trace is missing or checksum validation fails.
+- Abort TimescaleDB runs if rowstore/columnstore integration smoke tests fail.
+- Abort continuous-aggregate use if semantic-equivalence checks against the raw query
+  fail.
+- Do not remove slow completed queries as outliers.
+- Do not replace failed benchmark values with estimates.
+- Do not pool 30-second control windows as independent replicates.
+frozen_fairness_controls:
+  durability_equal_across_engines: true
+  resource_limits_equal_across_engines: true
+  postgres_major_version_equal: true
+  jit_disabled: true
+  io_timing_enabled: true
+  per_engine_load_calibration_forbidden: true
+  test_set_learning_across_repetitions_forbidden: true
+claim_policy:
+  no_performance_claim_without_raw_log: true
+  no_cloudflare_number_as_own_result: true
+  no_synthetic_fixture_as_experimental_evidence: true
+  negative_results_retained: true
+  claims_narrowed_to_observed_datasets_and_regimes: true
+safety_amendment:
+  reason: Real-data SQLite surrogate pilot showed material capacity variance across
+    fresh builds; no PostgreSQL/TimescaleDB target-engine performance result existed
+    at amendment time.
+  bo_conservative_safety_beta: 2.0
+  runtime_rollback_after_consecutive_slo_violations: 2
+  rollback_target: last_observed_slo_safe_design
+  target_timescaledb_version: 2.29.1
+  target_postgresql_major: 17
+advanced_method_amendment:
+  reason: 'Methodological strengthening before any PostgreSQL/TimescaleDB target-engine
+    performance result: operational selection should penalize predictive cost uncertainty
+    rather than reward it, and predictive SLO safety should be auditable as a probability
+    as well as a signed margin.'
+  risk_adjusted_cost_acquisition: minimize predictive cost upper-confidence bound
+    mu_J + kappa*sigma_J
+  risk_cost_kappa: 1.0
+  minimum_predicted_slo_compliance_probability: 0.975
+  signed_margin_lcb_beta: 2.0
+  two_timescale_control:
+    fast_path: per-query semantic routing to validated raw/continuous-aggregate path
+    slow_path: physical redesign only after persistent drift and minimum dwell
+  transition_observability:
+  - physical_design_realization_gap
+  - debt_exposure_fraction_seconds
+  - changed_control_count
+  - transition_distance
+  - actual_reconfiguration_seconds
+  target_engine_results_seen_at_amendment: false
