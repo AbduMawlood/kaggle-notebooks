@@ -1,0 +1,49 @@
+name: NetChronos semantic gate
+
+on:
+  push:
+    branches:
+      - agent/netchronos-target-benchmark
+    paths:
+      - '.github/workflows/netchronos-semantic-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  BUNDLE_SHA256: 03ce04751c746836bdfb4f6bb051953a8a84dd5f6bdb51644226a83ec360f9a4
+  POSTGRES_DB: netchronos
+  POSTGRES_USER: netchronos
+  POSTGRES_PASSWORD: netchronos
+  PGPORT_TS: '6543'
+  PGPORT_BASE: '6544'
+  PYTHONPATH: ${{ github.workspace }}/target-run/netchronos/src
+  VALIDATED_DATA_RUN: '31626072060'
+
+jobs:
+  semantic_gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./netchronos-ci/bootstrap
+      - name: Reuse only previously validated scenario artifacts for gate testing
+        uses: actions/download-artifact@v4
+        with:
+          pattern: yatesbury-*
+          path: scenario-artifacts
+          run-id: ${{ env.VALIDATED_DATA_RUN }}
+          github-token: ${{ github.token }}
+      - name: Stream-combine validation artifacts
+        working-directory: target-run/netchronos
+        run: python ../../netchronos-ci/combine_yatesbury.py --input-root ../../scenario-artifacts
+      - name: Start target database engines
+        working-directory: target-run/netchronos
+        run: |
+          docker compose pull
+          docker compose up -d timescaledb postgres
+      - name: Run semantic integration gate only
+        working-directory: target-run/netchronos
+        run: python scripts/integration_smoke.py
