@@ -64,22 +64,7 @@ jobs:
         working-directory: target-run/netchronos
         run: |
           python scripts/download_yatesbury.py --scenario normal --scenario varying_load --scenario normal_synflood_ddos --scenario normal_udp_ddos
-          python - <<'PYPROBE'
-          from pathlib import Path
-          p=next(Path('data/raw/yatesbury/extracted/normal').rglob('nsg.csv'))
-          b=p.read_bytes()[:2048]
-          print('YATESBURY_NSG_PATH=', p)
-          print('YATESBURY_NSG_PREFIX_REPR=', repr(b[:1000]))
-          print('COUNTS comma/tab/pipe/semicolon=', b.count(b','), b.count(b'\t'), b.count(b'|'), b.count(b';'))
-          PYPROBE
-          python - <<'PYFIX'
-          from pathlib import Path
-          p=Path('scripts/prepare_yatesbury.py')
-          s=p.read_text(encoding='utf-8')
-          s=s.replace("lab=pd.read_csv(label_path)", "lab=pd.read_csv(label_path, sep=None, engine='python')")
-          s=s.replace("df=pd.read_csv(nsg)", "df=pd.read_csv(nsg, sep=None, engine='python')")
-          p.write_text(s, encoding='utf-8')
-          PYFIX
+          python ../../netchronos-ci/patch_yatesbury.py scripts/prepare_yatesbury.py
           python scripts/prepare_yatesbury.py
           python scripts/validate_dataset.py
       - name: Semantic integration smoke test
