@@ -40,3 +40,7 @@ runs:
       shell: bash
       working-directory: target-run/netchronos
       run: python ../../netchronos-ci/patch_cagg_autocommit.py
+    - name: Preserve exact query windows across continuous aggregates
+      shell: bash
+      working-directory: target-run/netchronos
+      run: python ../../netchronos-ci/patch_exact_cagg_queries.py
