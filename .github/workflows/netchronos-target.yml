@@ -23,6 +23,7 @@ env:
   POSTGRES_PASSWORD: netchronos
   PGPORT_TS: '6543'
   PGPORT_BASE: '6544'
+  PYTHONPATH: ${{ github.workspace }}/target-run/netchronos/src
 
 jobs:
   scenario_prepare:
@@ -32,43 +33,11 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        scenario:
-          - normal
-          - varying_load
-          - normal_synflood_ddos
-          - normal_udp_ddos
+        scenario: [normal, varying_load, normal_synflood_ddos, normal_udp_ddos]
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruct verified research bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target-run
-          cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001a \
-              netchronos-ci/minbundle.part001b \
-              netchronos-ci/minbundle.part002a \
-              netchronos-ci/minbundle.part002b \
-              netchronos-ci/minbundle.part003a \
-              netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004a \
-              netchronos-ci/minbundle.part004b \
-              netchronos-ci/minbundle.part005 \
-              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
-          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
-          tar -xzf target-run/netchronos.tgz -C target-run
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: target-run/netchronos/requirements.txt
-      - name: Install Python dependencies
-        working-directory: target-run/netchronos
-        run: pip install -r requirements.txt
-      - name: Verify frozen protocol
-        working-directory: target-run/netchronos
-        run: python scripts/verify_protocol.py
-      - name: Download, stream-prepare, and strictly validate one real Yatesbury scenario
+      - uses: ./netchronos-ci/bootstrap
+      - name: Download, stream-prepare, and strictly validate one Yatesbury scenario
         working-directory: target-run/netchronos
         run: |
           set -euo pipefail
@@ -99,41 +68,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruct verified research bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target-run
-          cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001a \
-              netchronos-ci/minbundle.part001b \
-              netchronos-ci/minbundle.part002a \
-              netchronos-ci/minbundle.part002b \
-              netchronos-ci/minbundle.part003a \
-              netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004a \
-              netchronos-ci/minbundle.part004b \
-              netchronos-ci/minbundle.part005 \
-              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
-          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
-          tar -xzf target-run/netchronos.tgz -C target-run
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: target-run/netchronos/requirements.txt
-      - name: Install Python dependencies
-        working-directory: target-run/netchronos
-        run: pip install -r requirements.txt
+      - uses: ./netchronos-ci/bootstrap
       - uses: actions/download-artifact@v4
         with:
           pattern: yatesbury-*
           path: scenario-artifacts
-      - name: Stream-combine independently validated scenario traces
+      - name: Stream-combine validated scenario traces
         working-directory: target-run/netchronos
-        run: |
-          python ../../netchronos-ci/combine_yatesbury.py --input-root ../../scenario-artifacts
-          python scripts/verify_protocol.py
+        run: python ../../netchronos-ci/combine_yatesbury.py --input-root ../../scenario-artifacts
       - name: Start equal-resource database stack
         working-directory: target-run/netchronos
         run: |
@@ -145,7 +87,7 @@ jobs:
       - name: Shared ingestion calibration
         working-directory: target-run/netchronos
         run: python scripts/calibrate.py --seconds 60
-      - name: Capture shared environment provenance
+      - name: Capture shared provenance
         working-directory: target-run/netchronos
         run: |
           python scripts/preflight.py --require-docker --inspect-compose --out results/environment.json
@@ -174,32 +116,7 @@ jobs:
         candidate: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruct verified research bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target-run
-          cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001a \
-              netchronos-ci/minbundle.part001b \
-              netchronos-ci/minbundle.part002a \
-              netchronos-ci/minbundle.part002b \
-              netchronos-ci/minbundle.part003a \
-              netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004a \
-              netchronos-ci/minbundle.part004b \
-              netchronos-ci/minbundle.part005 \
-              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
-          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
-          tar -xzf target-run/netchronos.tgz -C target-run
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: target-run/netchronos/requirements.txt
-      - name: Install Python dependencies
-        working-directory: target-run/netchronos
-        run: pip install -r requirements.txt
+      - uses: ./netchronos-ci/bootstrap
       - uses: actions/download-artifact@v4
         with:
           name: netchronos-data-calibration
@@ -207,23 +124,20 @@ jobs:
       - name: Verify pilot inputs
         working-directory: target-run/netchronos
         run: |
-          python scripts/verify_protocol.py
           test -s data/processed/yatesbury.parquet
           test -s results/calibration.json
-      - name: Start isolated TimescaleDB stack
+      - name: Start isolated database stack
         working-directory: target-run/netchronos
         run: |
           docker compose pull timescaledb postgres
           docker compose up -d timescaledb postgres
-      - name: Execute exactly one deterministic pilot candidate
+      - name: Execute one deterministic pilot candidate
         working-directory: target-run/netchronos
         run: |
           mkdir -p results/raw
           python ../../netchronos-ci/run_pilot_one.py \
             --candidate-index '${{ matrix.candidate }}' \
-            --candidates 36 \
-            --seconds 30 \
-            --prefill-event-hours 72 \
+            --candidates 36 --seconds 30 --prefill-event-hours 72 \
             --out 'results/raw/pilot_c${{ matrix.candidate }}.jsonl'
       - name: Preserve database diagnostics on failure
         if: failure()
@@ -249,32 +163,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruct verified research bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target-run
-          cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001a \
-              netchronos-ci/minbundle.part001b \
-              netchronos-ci/minbundle.part002a \
-              netchronos-ci/minbundle.part002b \
-              netchronos-ci/minbundle.part003a \
-              netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004a \
-              netchronos-ci/minbundle.part004b \
-              netchronos-ci/minbundle.part005 \
-              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
-          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
-          tar -xzf target-run/netchronos.tgz -C target-run
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: target-run/netchronos/requirements.txt
-      - name: Install Python dependencies
-        working-directory: target-run/netchronos
-        run: pip install -r requirements.txt
+      - uses: ./netchronos-ci/bootstrap
       - uses: actions/download-artifact@v4
         with:
           name: netchronos-data-calibration
@@ -283,7 +172,7 @@ jobs:
         with:
           pattern: pilot-candidate-*
           path: pilot-artifacts
-      - name: Aggregate all 36 pilot candidates and freeze pilot-best design
+      - name: Aggregate all pilot candidates and freeze pilot-best design
         working-directory: target-run/netchronos
         run: |
           python ../../netchronos-ci/aggregate_pilot.py --input-root ../../pilot-artifacts --candidates 36 --phases 5
@@ -312,53 +201,18 @@ jobs:
       fail-fast: false
       max-parallel: 12
       matrix:
-        baseline:
-          - pg_heap
-          - pg_partitioned
-          - ts_default
-          - ts_native
-          - ts_pilot_best
-          - ts_static_cf
-          - bo_ungated
-          - netchronos_nocost
-          - netchronos
+        baseline: [pg_heap, pg_partitioned, ts_default, ts_native, ts_pilot_best, ts_static_cf, bo_ungated, netchronos_nocost, netchronos]
         rep: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruct verified research bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target-run
-          cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001a \
-              netchronos-ci/minbundle.part001b \
-              netchronos-ci/minbundle.part002a \
-              netchronos-ci/minbundle.part002b \
-              netchronos-ci/minbundle.part003a \
-              netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004a \
-              netchronos-ci/minbundle.part004b \
-              netchronos-ci/minbundle.part005 \
-              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
-          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
-          tar -xzf target-run/netchronos.tgz -C target-run
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: target-run/netchronos/requirements.txt
-      - name: Install Python dependencies
-        working-directory: target-run/netchronos
-        run: pip install -r requirements.txt
+      - uses: ./netchronos-ci/bootstrap
       - uses: actions/download-artifact@v4
         with:
           name: netchronos-prep
           path: target-run/netchronos
-      - name: Verify protocol and preparation inputs
+      - name: Verify target inputs
         working-directory: target-run/netchronos
         run: |
-          python scripts/verify_protocol.py
           test -s data/processed/yatesbury.parquet
           test -s results/calibration.json
           test -s results/raw/pilot.jsonl
@@ -402,39 +256,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruct verified research bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target-run
-          cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001a \
-              netchronos-ci/minbundle.part001b \
-              netchronos-ci/minbundle.part002a \
-              netchronos-ci/minbundle.part002b \
-              netchronos-ci/minbundle.part003a \
-              netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004a \
-              netchronos-ci/minbundle.part004b \
-              netchronos-ci/minbundle.part005 \
-              netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
-          echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
-          tar -xzf target-run/netchronos.tgz -C target-run
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: target-run/netchronos/requirements.txt
-      - name: Install analysis dependencies
-        working-directory: target-run/netchronos
-        run: pip install -r requirements.txt
+      - uses: ./netchronos-ci/bootstrap
       - uses: actions/download-artifact@v4
         with:
           pattern: target-*
           path: target-artifacts
           merge-multiple: true
       - name: Collect and validate 135 raw target logs
-        shell: bash
         run: |
           set -euo pipefail
           mkdir -p target-run/netchronos/results/raw
@@ -445,7 +273,6 @@ jobs:
       - name: Preregistered statistical analysis and result sealing
         working-directory: target-run/netchronos
         run: |
-          python scripts/verify_protocol.py
           python scripts/analyze.py
           python scripts/render_results.py
           python scripts/seal_results.py --require-raw
@@ -454,6 +281,7 @@ jobs:
           name: netchronos-final-target-results
           retention-days: 90
           compression-level: 6
+          if-no-files-found: error
           path: |
             target-run/netchronos/results/raw/*.jsonl
             target-run/netchronos/results/processed/**
