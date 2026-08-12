@@ -32,3 +32,7 @@ runs:
       shell: bash
       working-directory: target-run/netchronos
       run: python ../../netchronos-ci/patch_design_legality.py
+    - name: Use TimescaleDB-supported hypertable index creation
+      shell: bash
+      working-directory: target-run/netchronos
+      run: python ../../netchronos-ci/patch_hypertable_indexes.py
