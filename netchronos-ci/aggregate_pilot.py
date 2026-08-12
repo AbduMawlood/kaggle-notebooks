@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 """Combine 36 independently produced candidate pilot JSONLs deterministically."""
 from __future__ import annotations
-import argparse, json
+import argparse, json, site
 from pathlib import Path
+
+def register_project_src():
+    src=(Path.cwd()/'src').resolve()
+    if not (src/'netchronos'/'__init__.py').exists(): raise SystemExit(f'NetChronos package missing at {src}')
+    site_dirs=site.getsitepackages()
+    if not site_dirs: raise SystemExit('Python site-packages directory not found')
+    pth=Path(site_dirs[0])/'netchronos_ci_src.pth'
+    pth.write_text(str(src)+'\n',encoding='utf-8')
+    print(f'registered NetChronos source path: {src} -> {pth}')
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--input-root',default='pilot-artifacts'); ap.add_argument('--out',default='results/raw/pilot.jsonl'); ap.add_argument('--candidates',type=int,default=36); ap.add_argument('--phases',type=int,default=5); a=ap.parse_args()
@@ -25,5 +34,6 @@ def main():
     n=sum(1 for _ in out.open())
     expected=a.candidates*a.phases
     if n!=expected: raise SystemExit(f'aggregated rows {n} != {expected}')
+    register_project_src()
     print(json.dumps({'status':'PASS','candidates':a.candidates,'observations':n,'out':str(out)}))
 if __name__=='__main__': main()
