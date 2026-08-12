@@ -1,5 +1,5 @@
 name: Bootstrap verified NetChronos
-summary: Reconstruct the checksum-pinned bundle, install Python dependencies, and verify the frozen protocol
+description: Reconstruct the checksum-pinned bundle, install Python dependencies, and verify the frozen protocol
 runs:
   using: composite
   steps:
