@@ -28,3 +28,7 @@ runs:
       shell: bash
       working-directory: target-run/netchronos
       run: python ../../netchronos-ci/patch_db_transactions.py
+    - name: Enforce TimescaleDB-legal physical designs
+      shell: bash
+      working-directory: target-run/netchronos
+      run: python ../../netchronos-ci/patch_design_legality.py
