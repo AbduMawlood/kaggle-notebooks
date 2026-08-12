@@ -24,3 +24,7 @@ runs:
       shell: bash
       working-directory: target-run/netchronos
       run: python ../../netchronos-ci/patch_memory_loaders.py
+    - name: Apply fail-closed Psycopg DDL transaction-boundary patch
+      shell: bash
+      working-directory: target-run/netchronos
+      run: python ../../netchronos-ci/patch_db_transactions.py
