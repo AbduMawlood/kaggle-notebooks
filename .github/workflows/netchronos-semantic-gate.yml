@@ -21,7 +21,7 @@ env:
   PGPORT_BASE: '6544'
   PYTHONPATH: ${{ github.workspace }}/target-run/netchronos/src
   VALIDATED_DATA_RUN: '31626072060'
-  SEMANTIC_GATE_REV: 'transaction-boundary-v2'
+  SEMANTIC_GATE_REV: 'transaction-boundary-v3'
 
 jobs:
   semantic_gate:
