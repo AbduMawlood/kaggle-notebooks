@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: netchronos-target-benchmark
+  cancel-in-progress: true
+
 env:
   BUNDLE_SHA256: 03ce04751c746836bdfb4f6bb051953a8a84dd5f6bdb51644226a83ec360f9a4
   POSTGRES_DB: netchronos
