@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Combine independently validated Yatesbury scenario Parquets without full-frame materialization."""
 from __future__ import annotations
-import argparse, hashlib, json
+import argparse, hashlib, json, site
 from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -14,6 +14,18 @@ def sha256(path: Path) -> str:
         for b in iter(lambda:f.read(1024*1024), b''):
             h.update(b)
     return h.hexdigest()
+
+def register_project_src():
+    """Expose the checked, local src/netchronos package to subsequent Python steps."""
+    src=(Path.cwd()/'src').resolve()
+    if not (src/'netchronos'/'__init__.py').exists():
+        raise SystemExit(f'NetChronos package missing at {src}')
+    site_dirs=site.getsitepackages()
+    if not site_dirs:
+        raise SystemExit('Python site-packages directory not found')
+    pth=Path(site_dirs[0])/'netchronos_ci_src.pth'
+    pth.write_text(str(src)+'\n',encoding='utf-8')
+    print(f'registered NetChronos source path: {src} -> {pth}')
 
 def main():
     ap=argparse.ArgumentParser()
@@ -95,6 +107,7 @@ def main():
     if missing: raise SystemExit(f'combined parquet missing columns: {sorted(missing)}')
     if int(combined_scenarios['normal_synflood_ddos']['attack_rows'])<=0:
         raise SystemExit('SYN-flood DDoS scenario has no positive labels according to validated source manifest')
+    register_project_src()
     print(json.dumps({'status':'PASS','rows':total,'sha256':combined['processed_sha256'],'scenarios':expected},indent=2))
 
 if __name__=='__main__': main()
