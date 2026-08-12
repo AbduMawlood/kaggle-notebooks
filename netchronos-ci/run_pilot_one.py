@@ -7,6 +7,7 @@ import pandas as pd
 import psycopg, yaml
 
 ROOT=pathlib.Path.cwd()
+sys.path.insert(0,str(ROOT/'src'))
 sys.path.insert(0,str(ROOT/'scripts'))
 from run_pilot import PILOT_PHASES, diverse_sample, prefill
 from run_experiment import dsn_for, reset_schema, run_phase, storage_mb, context_for, slo_for, query_profile
