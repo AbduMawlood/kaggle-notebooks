@@ -64,6 +64,14 @@ jobs:
         working-directory: target-run/netchronos
         run: |
           python scripts/download_yatesbury.py --scenario normal --scenario varying_load --scenario normal_synflood_ddos --scenario normal_udp_ddos
+          python - <<'PYPROBE'
+          from pathlib import Path
+          p=next(Path('data/raw/yatesbury/extracted/normal').rglob('nsg.csv'))
+          b=p.read_bytes()[:2048]
+          print('YATESBURY_NSG_PATH=', p)
+          print('YATESBURY_NSG_PREFIX_REPR=', repr(b[:1000]))
+          print('COUNTS comma/tab/pipe/semicolon=', b.count(b','), b.count(b'\t'), b.count(b'|'), b.count(b';'))
+          PYPROBE
           python - <<'PYFIX'
           from pathlib import Path
           p=Path('scripts/prepare_yatesbury.py')
