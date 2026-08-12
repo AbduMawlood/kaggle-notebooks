@@ -36,3 +36,7 @@ runs:
       shell: bash
       working-directory: target-run/netchronos
       run: python ../../netchronos-ci/patch_hypertable_indexes.py
+    - name: Run continuous-aggregate refresh outside transactions
+      shell: bash
+      working-directory: target-run/netchronos
+      run: python ../../netchronos-ci/patch_cagg_autocommit.py
