@@ -6,15 +6,17 @@ on:
       - agent/netchronos-target-benchmark
     paths:
       - '.github/workflows/netchronos-target.yml'
-      - 'netchronos-ci/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Long confirmatory runs must never be killed by later helper-file commits.
+# A new authoritative run is triggered only by changing this workflow itself
+# (or by explicit workflow_dispatch).
 concurrency:
   group: netchronos-target-benchmark
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   BUNDLE_SHA256: 03ce04751c746836bdfb4f6bb051953a8a84dd5f6bdb51644226a83ec360f9a4
@@ -28,7 +30,7 @@ env:
 jobs:
   scenario_prepare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -65,7 +67,7 @@ jobs:
   combine_calibrate:
     needs: scenario_prepare
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./netchronos-ci/bootstrap
@@ -106,10 +108,14 @@ jobs:
   pilot:
     needs: combine_calibrate
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # 72 event-hours of real telemetry are deliberately prefetched for every
+    # candidate/phase. The previous 30-minute ceiling killed valid work before
+    # an observation could be emitted; six hours is GitHub-hosted runner's
+    # practical per-job ceiling and changes no experimental parameter.
+    timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 12
+      max-parallel: 4
       matrix:
         candidate: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
     steps:
@@ -131,7 +137,7 @@ jobs:
         working-directory: target-run/netchronos
         run: |
           mkdir -p results/raw
-          python ../../netchronos-ci/run_pilot_one.py \
+          python -u ../../netchronos-ci/run_pilot_one.py \
             --candidate-index '${{ matrix.candidate }}' \
             --candidates 36 --seconds 30 --prefill-event-hours 72 \
             --out 'results/raw/pilot_c${{ matrix.candidate }}.jsonl'
@@ -156,7 +162,7 @@ jobs:
   pilot_aggregate:
     needs: pilot
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: ./netchronos-ci/bootstrap
@@ -192,10 +198,13 @@ jobs:
   target:
     needs: pilot_aggregate
     runs-on: ubuntu-24.04
-    timeout-minutes: 70
+    # Each repetition includes six 300-s workload phases plus prefill,
+    # reconfiguration and teardown. Four hours provides execution headroom
+    # without changing the frozen workload duration or offered load.
+    timeout-minutes: 240
     strategy:
       fail-fast: false
-      max-parallel: 12
+      max-parallel: 6
       matrix:
         baseline: [pg_heap, pg_partitioned, ts_default, ts_native, ts_pilot_best, ts_static_cf, bo_ungated, netchronos_nocost, netchronos]
         rep: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
@@ -220,7 +229,7 @@ jobs:
         working-directory: target-run/netchronos
         run: |
           mkdir -p results/raw
-          python scripts/run_experiment.py \
+          python -u scripts/run_experiment.py \
             --matrix configs/experiment_matrix.yaml \
             --baseline '${{ matrix.baseline }}' \
             --rep '${{ matrix.rep }}' \
@@ -247,7 +256,7 @@ jobs:
     needs: target
     if: always()
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: ./netchronos-ci/bootstrap
