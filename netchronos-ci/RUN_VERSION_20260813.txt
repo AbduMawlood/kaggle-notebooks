@@ -1,0 +1,6 @@
+NetChronos target benchmark clean execution marker
+UTC trigger date: 2026-08-12
+Branch: agent/netchronos-target-benchmark
+Expected bundle SHA256: 03ce04751c746836bdfb4f6bb051953a8a84dd5f6bdb51644226a83ec360f9a4
+Dataset parser: fast C parser + header compatibility + UTC-ns normalization + vectorized 2-minute pair-label join
+Workflow: latest-only concurrency enabled
