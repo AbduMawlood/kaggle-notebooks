@@ -32,11 +32,14 @@ jobs:
           set -euo pipefail
           mkdir -p target-run
           cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001 \
-              netchronos-ci/minbundle.part002 \
+              netchronos-ci/minbundle.part001a \
+              netchronos-ci/minbundle.part001b \
+              netchronos-ci/minbundle.part002a \
+              netchronos-ci/minbundle.part002b \
               netchronos-ci/minbundle.part003a \
               netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004 \
+              netchronos-ci/minbundle.part004a \
+              netchronos-ci/minbundle.part004b \
               netchronos-ci/minbundle.part005 \
               netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
           echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
@@ -120,11 +123,14 @@ jobs:
           set -euo pipefail
           mkdir -p target-run
           cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001 \
-              netchronos-ci/minbundle.part002 \
+              netchronos-ci/minbundle.part001a \
+              netchronos-ci/minbundle.part001b \
+              netchronos-ci/minbundle.part002a \
+              netchronos-ci/minbundle.part002b \
               netchronos-ci/minbundle.part003a \
               netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004 \
+              netchronos-ci/minbundle.part004a \
+              netchronos-ci/minbundle.part004b \
               netchronos-ci/minbundle.part005 \
               netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
           echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
@@ -194,11 +200,14 @@ jobs:
           set -euo pipefail
           mkdir -p target-run
           cat netchronos-ci/minbundle.part000 \
-              netchronos-ci/minbundle.part001 \
-              netchronos-ci/minbundle.part002 \
+              netchronos-ci/minbundle.part001a \
+              netchronos-ci/minbundle.part001b \
+              netchronos-ci/minbundle.part002a \
+              netchronos-ci/minbundle.part002b \
               netchronos-ci/minbundle.part003a \
               netchronos-ci/minbundle.part003b \
-              netchronos-ci/minbundle.part004 \
+              netchronos-ci/minbundle.part004a \
+              netchronos-ci/minbundle.part004b \
               netchronos-ci/minbundle.part005 \
               netchronos-ci/minbundle.part006 | base64 -d > target-run/netchronos.tgz
           echo "${BUNDLE_SHA256}  target-run/netchronos.tgz" | sha256sum -c -
