@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Fail-closed memory patch for frozen benchmark scripts.
+"""Fail-closed memory/CI patch for frozen benchmark scripts.
 
-Only data-loading mechanics are changed: pandas/pyarrow predicate filters are applied
-before materialization. No row selection differs from the existing downstream Boolean
-filters, and no benchmark constants, SLOs, designs, seeds, or measurements are changed.
+Only data-loading/sampling mechanics are changed. Parquet predicates are pushed down
+before materialization, and the smoke-test sample is time-stratified over the same
+normal pilot interval so that it can exercise closed continuous-aggregate buckets.
+No source row is synthesized; no benchmark constant, SLO, design, seed, query, or
+measured outcome is changed.
 """
 from pathlib import Path
 
@@ -20,10 +22,19 @@ root=Path.cwd()
 
 # Smoke test already selects normal+pilot immediately after loading; push that same
 # predicate into Parquet before pandas materializes the frame.
+smoke=root/'scripts'/'integration_smoke.py'
 replace_once(
-    root/'scripts'/'integration_smoke.py',
+    smoke,
     "a=p.parse_args(); df=pd.read_parquet(a.data)",
     "a=p.parse_args(); df=pd.read_parquet(a.data, filters=[('scenario','==','normal'),('pilot_split','==',True)])",
+)
+# The frozen smoke test used head(N), which on dense NSG flow logs can cover less than
+# 10 minutes even for N=100k. Select at most the same N *real* rows, evenly over the
+# already defined <=24 h smoke window, so CAGG closed-bucket semantics are testable.
+replace_once(
+    smoke,
+    "x=span.head(a.rows)",
+    "n=min(int(a.rows),len(span))\n    if n < 2: raise SystemExit('Smoke slice has fewer than two real rows')\n    x=span if len(span)<=n else span.iloc[[int(i*(len(span)-1)/(n-1)) for i in range(n)]].copy()",
 )
 
 # Calibration likewise uses only normal pilot rows.
@@ -47,4 +58,4 @@ replace_once(
     "sub=pd.read_parquet(a.data, filters=[('scenario','==',phase['scenario']),('pilot_split','==',False)]).copy()",
 )
 
-print('memory-loader patch complete: semantics unchanged, predicate pushdown enabled')
+print('memory/CI patch complete: predicate pushdown + time-stratified real-row smoke sample enabled')
