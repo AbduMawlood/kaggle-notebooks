@@ -21,7 +21,7 @@ path = Path('src/netchronos/db.py')
 s = path.read_text(encoding='utf-8')
 
 old = '''def execute_statements(conn, statements: Iterable[str]) -> None:\n    """Execute DDL with autocommit so CONCURRENTLY is legal and timings are real."""\n    previous = conn.autocommit\n    conn.autocommit = True\n    try:\n        with conn.cursor() as cur:\n            for statement in statements:\n                cur.execute(statement)\n    finally:\n        conn.autocommit = previous\n'''
-new = '''def execute_statements(conn, statements: Iterable[str]) -> None:\n    """Execute DDL with an explicit, fail-closed autocommit boundary.\n\n    Psycopg 3 forbids changing ``autocommit`` while the connection is INTRANS.\n    NetChronos legitimately performs read-only physical-state inspection immediately\n    before DDL, so that completed inspection transaction is committed explicitly.\n    Failed transactions are rolled back; ambiguous ACTIVE/UNKNOWN states are rejected.\n    """\n    previous = conn.autocommit\n    if not previous:\n        status = conn.info.transaction_status\n        if status == psycopg.pq.TransactionStatus.INTRANS:\n            conn.commit()\n        elif status == psycopg.pq.TransactionStatus.INERROR:\n            conn.rollback()\n        elif status != psycopg.pq.TransactionStatus.IDLE:\n            raise RuntimeError(f"Cannot enter DDL autocommit from transaction state {status!r}")\n    conn.autocommit = True\n    try:\n        with conn.cursor() as cur:\n            for statement in statements:\n                cur.execute(statement)\n    finally:\n        conn.autocommit = previous\n'''
+new = '''def execute_statements(conn, statements: Iterable[str]) -> None:\n    """Execute DDL with an explicit, fail-closed autocommit boundary.\n\n    Psycopg 3 forbids changing ``autocommit`` while the connection is INTRANS.\n    NetChronos legitimately performs read-only physical-state inspection immediately\n    before DDL, so that completed inspection transaction is committed explicitly.\n    Failed transactions are rolled back; ambiguous ACTIVE/UNKNOWN states are rejected.\n    """\n    from psycopg.pq import TransactionStatus\n\n    previous = conn.autocommit\n    if not previous:\n        status = conn.info.transaction_status\n        if status == TransactionStatus.INTRANS:\n            conn.commit()\n        elif status == TransactionStatus.INERROR:\n            conn.rollback()\n        elif status != TransactionStatus.IDLE:\n            raise RuntimeError(f"Cannot enter DDL autocommit from transaction state {status!r}")\n    conn.autocommit = True\n    try:\n        with conn.cursor() as cur:\n            for statement in statements:\n                cur.execute(statement)\n    finally:\n        conn.autocommit = previous\n'''
 
 count = s.count(old)
 if count != 1:
@@ -29,8 +29,9 @@ if count != 1:
 s = s.replace(old, new, 1)
 
 required = [
-    'psycopg.pq.TransactionStatus.INTRANS',
-    'psycopg.pq.TransactionStatus.INERROR',
+    'from psycopg.pq import TransactionStatus',
+    'TransactionStatus.INTRANS',
+    'TransactionStatus.INERROR',
     'Cannot enter DDL autocommit from transaction state',
 ]
 for token in required:
