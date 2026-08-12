@@ -1,5 +1,5 @@
 name: Bootstrap verified NetChronos
-description: Reconstruct the checksum-pinned bundle, install Python dependencies, and verify the frozen protocol
+description: Reconstruct the checksum-pinned bundle, install dependencies, verify protocol, and apply semantics-preserving CI compatibility patches
 runs:
   using: composite
   steps:
@@ -16,7 +16,11 @@ runs:
       shell: bash
       working-directory: target-run/netchronos
       run: pip install -r requirements.txt
-    - name: Verify frozen protocol
+    - name: Verify frozen protocol before compatibility patches
       shell: bash
       working-directory: target-run/netchronos
       run: python scripts/verify_protocol.py
+    - name: Apply fail-closed predicate-pushdown patch
+      shell: bash
+      working-directory: target-run/netchronos
+      run: python ../../netchronos-ci/patch_memory_loaders.py
