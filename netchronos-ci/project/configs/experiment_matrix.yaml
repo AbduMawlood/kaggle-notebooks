@@ -1,0 +1,125 @@
+seed: 20260810
+repetitions: 15
+measure_seconds: 300
+pilot_fraction: 0.2
+control_interval_seconds: 30
+min_dwell_controls: 2
+max_rewrite_chunks_per_control: 2
+drift:
+  threshold: 0.22
+  persistence_controls: 2
+rbcr_threshold: 0.002
+failure_penalty_cost: 10.0
+slo:
+  p95_ms: 250.0
+  min_ingest_fraction_of_offered: 0.95
+  max_cagg_staleness_s: 900.0
+  max_reconfig_seconds: 30.0
+replay:
+  capacity_calibration_seconds: 60
+  normal_capacity_fraction: 0.3
+  high_capacity_fraction: 0.6
+  attack_capacity_fraction: 0.8
+  query_arrival: poisson
+  query_qps:
+    dashboard: 2.0
+    incident: 4.0
+    forensic: 2.0
+    historical: 0.5
+query_profiles:
+  dashboard:
+    dashboard: 0.55
+    top_talkers: 0.3
+    incident: 0.15
+  incident:
+    dashboard: 0.1
+    top_talkers: 0.2
+    incident: 0.55
+    forensic: 0.15
+  forensic:
+    top_talkers: 0.1
+    incident: 0.25
+    forensic: 0.55
+    historical: 0.1
+  historical:
+    dashboard: 0.1
+    forensic: 0.25
+    historical: 0.65
+workload_phases:
+- name: normal
+  scenario: normal
+  query_profile: dashboard
+  capacity_fraction: 0.3
+- name: high_ingest
+  scenario: varying_load
+  query_profile: dashboard
+  capacity_fraction: 0.6
+- name: ddos
+  scenario: normal_synflood_ddos
+  query_profile: incident
+  capacity_fraction: 0.8
+- name: investigation
+  scenario: normal_synflood_ddos
+  query_profile: forensic
+  capacity_fraction: 0.35
+- name: historical
+  scenario: normal
+  query_profile: historical
+  capacity_fraction: 0.25
+- name: recovery
+  scenario: normal
+  query_profile: dashboard
+  capacity_fraction: 0.3
+baselines:
+- pg_heap
+- pg_partitioned
+- ts_default
+- ts_native
+- ts_pilot_best
+- ts_static_cf
+- bo_ungated
+- netchronos_nocost
+- netchronos
+candidate_space:
+  chunk_interval_hours:
+  - 1
+  - 6
+  - 24
+  columnstore_after_hours:
+  - 2
+  - 12
+  - 48
+  segmentby:
+  - none
+  - src_ip
+  - dst_ip
+  - src_dst
+  orderby:
+  - time_desc
+  - time_src
+  - time_dst
+  cagg_bucket_minutes:
+  - 0
+  - 5
+  - 60
+  - 360
+  cagg_refresh_minutes:
+  - 5
+  - 30
+  - 120
+  hot_index:
+  - none
+  - src_time
+  - dst_time
+  - src_dst_time
+safe_bo_beta: 2.0
+runtime_slo_rollback:
+  enabled: true
+  consecutive_control_violations: 2
+  rollback_to_last_safe_design: true
+risk_cost_kappa: 1.0
+min_predicted_safety_probability: 0.975
+optimizer_shortlist_k: 5
+two_timescale_control:
+  fast_query_routing_each_query: true
+  slow_physical_redesign_min_controls: 2
