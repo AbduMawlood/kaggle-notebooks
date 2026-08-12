@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Execute exactly one deterministic pilot candidate across the frozen five pilot phases."""
 from __future__ import annotations
-import argparse, json, pathlib, sys
+import argparse, gc, json, pathlib, sys
 from datetime import datetime, timezone
 import pandas as pd
 import psycopg, yaml
@@ -14,6 +14,11 @@ from run_experiment import dsn_for, reset_schema, run_phase, storage_mb, context
 from netchronos.candidates import enumerate_designs
 from netchronos.db import apply_initial_design, server_metadata
 from netchronos.objective import Metrics, constraint_margin, normalized_cost
+
+
+def pilot_rows(path, scenario):
+    """Load only the exact scenario/pilot split required by the current phase."""
+    return pd.read_parquet(path,filters=[('scenario','==',scenario),('pilot_split','==',True)]).copy()
 
 
 def main():
@@ -32,16 +37,16 @@ def main():
     di=a.candidate_index
     if di<0 or di>=len(designs): raise SystemExit(f'candidate-index {di} outside 0..{len(designs)-1}')
     d=designs[di]
-    df=pd.read_parquet(a.data)
     cal=json.loads(pathlib.Path(a.calibration).read_text()); reference=float(cal['reference_ingest_rows_s'])
     out=pathlib.Path(a.out); out.parent.mkdir(parents=True,exist_ok=True)
     dsn=dsn_for('ts_pilot_best'); epoch=datetime(2026,1,1,tzinfo=timezone.utc)
-    normal=df[(df.scenario=='normal') & (df.pilot_split)].copy()
+    normal=pilot_rows(a.data,'normal')
     if normal.empty: raise SystemExit('pilot normal trace empty')
     with out.open('w',encoding='utf-8') as fh:
         for pi,phase in enumerate(PILOT_PHASES):
-            sub=df[(df.scenario==phase['scenario']) & (df.pilot_split)].copy()
-            if sub.empty: raise RuntimeError(f"pilot rows missing for {phase['scenario']}")
+            scenario=phase['scenario']
+            sub=normal.copy() if scenario=='normal' else pilot_rows(a.data,scenario)
+            if sub.empty: raise RuntimeError(f"pilot rows missing for {scenario}")
             with psycopg.connect(dsn) as conn:
                 reset_schema(conn,'ts_pilot_best')
                 rr0=apply_initial_design(conn,d)
@@ -61,8 +66,10 @@ def main():
             cost=normalized_cost(m,slo); margin=constraint_margin(m,slo)
             if res.get('errors'):
                 cost=max(float(cost),float(cfg.get('failure_penalty_cost',10.0))); margin=min(float(margin),-1.0)
-            rec={**res,'stage':'pilot','candidate_id':di,'phase':phase['name'],'scenario':phase['scenario'],'design':d.as_dict(),'context':context.tolist(),'cost':cost,'constraint_margin':margin,'storage_mb':sm,'prefill_rows':prefill_rows,'deployment_reconfig_s':deployment_reconfig_s,'metadata':meta}
+            rec={**res,'stage':'pilot','candidate_id':di,'phase':phase['name'],'scenario':scenario,'design':d.as_dict(),'context':context.tolist(),'cost':cost,'constraint_margin':margin,'storage_mb':sm,'prefill_rows':prefill_rows,'deployment_reconfig_s':deployment_reconfig_s,'metadata':meta}
             fh.write(json.dumps(rec,default=str)+'\n'); fh.flush()
+            del sub
+            gc.collect()
     lines=sum(1 for _ in out.open())
     if lines!=len(PILOT_PHASES): raise SystemExit(f'pilot candidate {di}: expected {len(PILOT_PHASES)} observations, got {lines}')
     print(json.dumps({'status':'PASS','candidate_id':di,'observations':lines,'out':str(out)}))
