@@ -68,17 +68,18 @@ jobs:
       - name: Verify frozen protocol
         working-directory: target-run/netchronos
         run: python scripts/verify_protocol.py
-      - name: Download, prepare, and strictly validate one real Yatesbury scenario
+      - name: Download, stream-prepare, and strictly validate one real Yatesbury scenario
         working-directory: target-run/netchronos
         run: |
           set -euo pipefail
           scenario='${{ matrix.scenario }}'
           python scripts/download_yatesbury.py --scenario "${scenario}"
-          python ../../netchronos-ci/patch_yatesbury.py scripts/prepare_yatesbury.py
-          python scripts/prepare_yatesbury.py \
+          python ../../netchronos-ci/prepare_yatesbury_stream.py \
+            --scenario "${scenario}" \
             --out "data/processed/yatesbury_${scenario}.parquet" \
-            --manifest "data/processed/yatesbury_${scenario}.manifest.json"
-          python scripts/validate_dataset.py \
+            --manifest "data/processed/yatesbury_${scenario}.manifest.json" \
+            --chunksize 200000
+          python ../../netchronos-ci/validate_yatesbury_stream.py \
             --data "data/processed/yatesbury_${scenario}.parquet" \
             --manifest "data/processed/yatesbury_${scenario}.manifest.json" \
             --require-scenario "${scenario}"
