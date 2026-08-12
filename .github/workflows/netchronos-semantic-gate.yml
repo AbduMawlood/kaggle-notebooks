@@ -6,6 +6,8 @@ on:
       - agent/netchronos-target-benchmark
     paths:
       - '.github/workflows/netchronos-semantic-gate.yml'
+      - 'netchronos-ci/bootstrap/action.yml'
+      - 'netchronos-ci/patch_design_legality.py'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +23,7 @@ env:
   PGPORT_BASE: '6544'
   PYTHONPATH: ${{ github.workspace }}/target-run/netchronos/src
   VALIDATED_DATA_RUN: '31626072060'
-  SEMANTIC_GATE_REV: 'transaction-boundary-v3'
+  SEMANTIC_GATE_REV: 'timescale-design-legality-v4'
 
 jobs:
   semantic_gate:
