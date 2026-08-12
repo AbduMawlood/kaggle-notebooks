@@ -78,9 +78,7 @@ jobs:
         run: python ../../netchronos-ci/combine_yatesbury.py --input-root ../../scenario-artifacts
       - name: Start equal-resource database stack
         working-directory: target-run/netchronos
-        run: |
-          docker compose pull
-          docker compose up -d timescaledb postgres
+        run: bash ../../netchronos-ci/start_db_stack.sh timescaledb postgres
       - name: Semantic integration smoke test
         working-directory: target-run/netchronos
         run: python scripts/integration_smoke.py
@@ -128,9 +126,7 @@ jobs:
           test -s results/calibration.json
       - name: Start isolated database stack
         working-directory: target-run/netchronos
-        run: |
-          docker compose pull timescaledb postgres
-          docker compose up -d timescaledb postgres
+        run: bash ../../netchronos-ci/start_db_stack.sh timescaledb postgres
       - name: Execute one deterministic pilot candidate
         working-directory: target-run/netchronos
         run: |
@@ -219,9 +215,7 @@ jobs:
           test -s results/pilot_best_design.json
       - name: Start isolated database stack
         working-directory: target-run/netchronos
-        run: |
-          docker compose pull
-          docker compose up -d timescaledb postgres
+        run: bash ../../netchronos-ci/start_db_stack.sh timescaledb postgres
       - name: Execute one preregistered independent repetition
         working-directory: target-run/netchronos
         run: |
